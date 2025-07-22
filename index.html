@@ -1,3 +1,4 @@
+cat > index.html << 'EOF'
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -5,31 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FortiSASE Health Check Dashboard</title>
     <meta name="description" content="Herramienta de análisis y optimización de aprovechamiento de licencias FortiSASE">
-    <meta name="keywords" content="Fortinet, FortiSASE, SASE, Security, Dashboard, License Management">
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Recharts y React desde CDN -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.js"></script>
-    
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-    
-    <!-- Babel para JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
     <style>
-        /* Custom styles for better mobile experience */
-        @media (max-width: 768px) {
-            .mobile-scroll {
-                overflow-x: auto;
-            }
-        }
-        
-        /* Loading animation */
         .loading-spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #dc2626;
@@ -38,20 +21,9 @@
             height: 40px;
             animation: spin 1s linear infinite;
         }
-        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
-        }
-        
-        /* Print styles */
-        @media print {
-            .no-print {
-                display: none !important;
-            }
-            body {
-                background: white !important;
-            }
         }
     </style>
 </head>
@@ -66,799 +38,188 @@
     </div>
 
     <script type="text/babel">
-        // Import icons from Lucide
-        const {
-            BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-            PieChart, Pie, Cell, LineChart, Line, ComposedChart
-        } = Recharts;
-        
-        const {
-            CheckCircle, AlertCircle, XCircle, Users, Shield, Activity, TrendingUp,
-            Download, Settings, RefreshCw, DollarSign, TrendingDown
-        } = lucide;
+        const { useState, useEffect } = React;
+        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = Recharts;
+        const { CheckCircle, AlertCircle, XCircle, Users, Shield, DollarSign, TrendingUp, Settings, Download } = lucide;
 
         const FortiSASEDashboard = () => {
-          // Estados principales
-          const [selectedTimeframe, setSelectedTimeframe] = React.useState('month');
-          const [selectedModule, setSelectedModule] = React.useState('all');
-          const [showConfigPanel, setShowConfigPanel] = React.useState(false);
-          const [clientName, setClientName] = React.useState('');
-          
-          const [licenseData, setLicenseData] = React.useState({
-            totalLicenses: 500,
-            activeLicenses: 387,
-            availableLicenses: 113
-          });
+          const [clientName, setClientName] = useState('Demo Company');
+          const [showConfigPanel, setShowConfigPanel] = useState(false);
 
-          const [featuresData, setFeaturesData] = React.useState([
-            {
-              id: 'sia',
-              name: 'Secure Internet Access (SIA)',
-              category: 'Core SASE',
-              description: 'Acceso seguro a Internet con inspección SSL, antivirus, IPS y sandbox',
-              licensesRequired: 387,
-              licensesActive: 387,
-              utilizationRate: 100,
-              status: 'active',
-              features: ['SSL Inspection', 'Inline Antivirus', 'Inline Sandbox', 'IPS', 'Web Filtering', 'DNS Security'],
-              requirements: 'FortiClient Agent instalado en dispositivos endpoint',
-              bandwidth: '1.5 Mbps por usuario (agrupado)',
-              devices: '3 dispositivos por usuario',
-              licenseType: 'standard',
-              costPerLicense: 90
-            },
-            {
-              id: 'spa',
-              name: 'Secure Private Access (SPA)',
-              category: 'Private Access',
-              description: 'Acceso privado seguro con ZTNA y SD-WAN',
-              licensesRequired: 200,
-              licensesActive: 156,
-              utilizationRate: 78,
-              status: 'partial',
-              features: ['ZTNA', 'SD-WAN Integration', 'Private App Access', 'FortiGate Integration'],
-              requirements: 'FortiGate físico/virtual como hub, configuración ZTNA',
-              bandwidth: 'Según configuración SD-WAN',
-              devices: 'Todos los dispositivos registrados',
-              licenseType: 'advanced',
-              costPerLicense: 117
-            },
-            {
-              id: 'swg',
-              name: 'Secure Web Gateway (SWG)',
-              category: 'Web Security',
-              description: 'Gateway web seguro con filtrado y protección avanzada',
-              licensesRequired: 387,
-              licensesActive: 387,
-              utilizationRate: 100,
-              status: 'active',
-              features: ['Web Filtering', 'URL Categorization', 'Malware Protection', 'Content Inspection'],
-              requirements: 'Incluido en suscripción SIA estándar',
-              bandwidth: 'Compartido con SIA',
-              devices: 'Agent-based o agentless',
-              licenseType: 'standard',
-              costPerLicense: 90
-            },
-            {
-              id: 'casb',
-              name: 'Cloud Access Security Broker (CASB)',
-              category: 'Cloud Security',
-              description: 'Control granular sobre aplicaciones SaaS',
-              licensesRequired: 300,
-              licensesActive: 145,
-              utilizationRate: 48,
-              status: 'partial',
-              features: ['SaaS App Control', 'Data Loss Prevention', 'Cloud Compliance', 'Shadow IT Discovery'],
-              requirements: 'Configuración de políticas CASB, integración API con SaaS',
-              bandwidth: 'Sin impacto adicional',
-              devices: 'Todos los dispositivos con agent',
-              licenseType: 'advanced',
-              costPerLicense: 117
-            },
-            {
-              id: 'dlp',
-              name: 'Data Loss Prevention (DLP)',
-              category: 'Data Protection',
-              description: 'Prevención de pérdida de datos en tiempo real',
-              licensesRequired: 387,
-              licensesActive: 234,
-              utilizationRate: 60,
-              status: 'partial',
-              features: ['Content Inspection', 'File Type Detection', 'Custom Rules', 'Compliance Templates'],
-              requirements: 'Configuración de reglas DLP, definición de datos sensibles',
-              bandwidth: 'Sin impacto adicional',
-              devices: 'Agent-based recomendado',
-              licenseType: 'advanced',
-              costPerLicense: 117
-            },
-            {
-              id: 'fwaas',
-              name: 'Firewall as a Service (FWaaS)',
-              category: 'Network Security',
-              description: 'Firewall basado en la nube con FortiOS',
-              licensesRequired: 387,
-              licensesActive: 387,
-              utilizationRate: 100,
-              status: 'active',
-              features: ['Stateful Inspection', 'Application Control', 'Threat Intelligence', 'FortiOS Engine'],
-              requirements: 'Incluido en suscripción estándar',
-              bandwidth: 'Según políticas configuradas',
-              devices: 'Todos los dispositivos',
-              licenseType: 'standard',
-              costPerLicense: 90
-            },
-            {
-              id: 'ips',
-              name: 'Intrusion Prevention System (IPS)',
-              category: 'Threat Protection',
-              description: 'Sistema de prevención de intrusiones en línea',
-              licensesRequired: 387,
-              licensesActive: 387,
-              utilizationRate: 100,
-              status: 'active',
-              features: ['Signature-based Detection', 'Behavioral Analysis', 'Real-time Updates', 'FortiGuard Integration'],
-              requirements: 'Incluido en suscripción estándar',
-              bandwidth: 'Sin impacto adicional',
-              devices: 'Todos los dispositivos',
-              licenseType: 'standard',
-              costPerLicense: 90
-            },
-            {
-              id: 'sandbox',
-              name: 'Advanced Threat Protection (Sandbox)',
-              category: 'Threat Protection',
-              description: 'Sandboxing avanzado para amenazas desconocidas',
-              licensesRequired: 387,
-              licensesActive: 387,
-              utilizationRate: 100,
-              status: 'active',
-              features: ['Behavioral Analysis', 'Zero-day Protection', 'File Detonation', 'Threat Intelligence'],
-              requirements: 'Incluido en suscripción estándar',
-              bandwidth: 'Sin impacto adicional',
-              devices: 'Agent-based y agentless',
-              licenseType: 'standard',
-              costPerLicense: 90
-            },
-            {
-              id: 'dem',
-              name: 'Digital Experience Monitoring (DEM)',
-              category: 'Performance',
-              description: 'Monitoreo de experiencia digital de extremo a extremo',
-              licensesRequired: 200,
-              licensesActive: 89,
-              utilizationRate: 44,
-              status: 'inactive',
-              features: ['End-to-End Monitoring', 'Performance Analytics', 'User Experience Metrics', 'SLA Monitoring'],
-              requirements: 'Configuración de métricas, agentes especializados',
-              bandwidth: 'Mínimo impacto',
-              devices: 'Agent con capacidades DEM',
-              licenseType: 'advanced',
-              costPerLicense: 117
-            },
-            {
-              id: 'rbi',
-              name: 'Remote Browser Isolation (RBI)',
-              category: 'Professional Features',
-              description: 'Aislamiento remoto del navegador con funcionalidades profesionales',
-              licensesRequired: 150,
-              licensesActive: 0,
-              utilizationRate: 0,
-              status: 'inactive',
-              features: ['Browser Isolation', 'Zero Trust Browsing', 'Malware Prevention', 'Pixel Streaming'],
-              requirements: 'Licencia Professional adicional, configuración de políticas',
-              bandwidth: 'Alto consumo (5-10 Mbps por sesión)',
-              devices: 'Navegadores compatibles',
-              licenseType: 'professional',
-              costPerLicense: 140
-            }
-          ]);
-
-          // Cargar datos del localStorage al inicio
-          React.useEffect(() => {
-            const savedConfig = localStorage.getItem('fortisase-client-config');
-            
-            if (savedConfig) {
-              try {
-                const config = JSON.parse(savedConfig);
-                if (config.clientName) setClientName(config.clientName);
-                if (config.featuresData) setFeaturesData(config.featuresData);
-                if (config.licenseData) setLicenseData(config.licenseData);
-              } catch (error) {
-                console.error('Error loading saved config:', error);
-              }
-            }
-          }, []);
-
-          // Calcular estadísticas generales
-          const totalUtilization = Math.round(
-            featuresData.reduce((acc, feature) => acc + feature.utilizationRate, 0) / featuresData.length
-          );
-
-          const activeFeatures = featuresData.filter(f => f.status === 'active').length;
-          const partialFeatures = featuresData.filter(f => f.status === 'partial').length;
-          const inactiveFeatures = featuresData.filter(f => f.status === 'inactive').length;
-
-          // Calcular costos y desperdicios
-          const totalAnnualCost = featuresData.reduce((acc, feature) => {
-            return acc + (feature.licensesRequired * feature.costPerLicense);
-          }, 0);
-
-          const wastedCost = featuresData.reduce((acc, feature) => {
-            const underutilizedLicenses = feature.licensesRequired - feature.licensesActive;
-            return acc + (underutilizedLicenses * feature.costPerLicense);
-          }, 0);
-
-          const potentialSavings = featuresData.reduce((acc, feature) => {
-            if (feature.status === 'inactive') {
-              return acc + (feature.licensesRequired * feature.costPerLicense);
-            }
-            if (feature.status === 'partial' && feature.utilizationRate < 50) {
-              const excessLicenses = Math.floor(feature.licensesRequired * (1 - feature.utilizationRate / 100));
-              return acc + (excessLicenses * feature.costPerLicense);
-            }
-            return acc;
-          }, 0);
-
-          // Funciones auxiliares
-          const createSnapshot = () => {
-            const snapshots = JSON.parse(localStorage.getItem('fortisase-snapshots') || '[]');
-            const newSnapshot = {
-              date: new Date().toISOString(),
-              utilizationRate: totalUtilization,
-              totalCost: totalAnnualCost,
-              wastedCost: wastedCost,
-              activeFeatures: activeFeatures
-            };
-            
-            snapshots.push(newSnapshot);
-            if (snapshots.length > 12) {
-              snapshots.splice(0, snapshots.length - 12);
-            }
-            
-            localStorage.setItem('fortisase-snapshots', JSON.stringify(snapshots));
-            alert('📸 Snapshot creado exitosamente');
-          };
-
-          const saveConfiguration = () => {
-            const config = {
-              clientName,
-              featuresData,
-              licenseData,
-              lastUpdated: new Date().toISOString()
-            };
-            localStorage.setItem('fortisase-client-config', JSON.stringify(config));
-            alert('✅ Configuración guardada exitosamente');
-          };
-
-          const updateFeature = (featureId, updates) => {
-            setFeaturesData(prev => {
-              const newFeatures = prev.map(feature => 
-                feature.id === featureId 
-                  ? { 
-                      ...feature, 
-                      ...updates,
-                      utilizationRate: updates.licensesActive !== undefined && updates.licensesRequired !== undefined
-                        ? Math.round((updates.licensesActive / Math.max(updates.licensesRequired, 1)) * 100)
-                        : updates.licensesActive !== undefined && feature.licensesRequired > 0
-                          ? Math.round((updates.licensesActive / feature.licensesRequired) * 100)
-                          : feature.utilizationRate,
-                      status: (() => {
-                        const active = updates.licensesActive !== undefined ? updates.licensesActive : feature.licensesActive;
-                        const required = updates.licensesRequired !== undefined ? updates.licensesRequired : feature.licensesRequired;
-                        if (active === 0) return 'inactive';
-                        if (active === required) return 'active';
-                        return 'partial';
-                      })()
-                    }
-                  : feature
-              );
-              
-              const totalRequired = newFeatures.reduce((acc, feature) => acc + feature.licensesRequired, 0);
-              const totalActive = newFeatures.reduce((acc, feature) => acc + feature.licensesActive, 0);
-              
-              setLicenseData({
-                totalLicenses: totalRequired,
-                activeLicenses: totalActive,
-                availableLicenses: totalRequired - totalActive
-              });
-              
-              return newFeatures;
-            });
-          };
-
-          const exportConfiguration = () => {
-            const config = {
-              clientName,
-              featuresData,
-              licenseData,
-              snapshots: JSON.parse(localStorage.getItem('fortisase-snapshots') || '[]'),
-              exportDate: new Date().toISOString()
-            };
-
-            const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `fortisase-config-${clientName || 'cliente'}-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          };
-
-          const importConfiguration = (event) => {
-            const file = event.target.files[0];
-            if (file) {
-              const reader = new FileReader();
-              reader.onload = (e) => {
-                try {
-                  const config = JSON.parse(e.target.result);
-                  setClientName(config.clientName || '');
-                  setFeaturesData(config.featuresData || featuresData);
-                  setLicenseData(config.licenseData || licenseData);
-                  
-                  if (config.snapshots) {
-                    localStorage.setItem('fortisase-snapshots', JSON.stringify(config.snapshots));
-                  }
-                  
-                  alert('✅ Configuración importada exitosamente');
-                } catch (error) {
-                  alert('❌ Error al importar el archivo');
-                }
-              };
-              reader.readAsText(file);
-            }
-          };
-
-          const exportReport = () => {
-            const reportData = {
-              generatedAt: new Date().toISOString(),
-              clientName: clientName || 'Cliente Sin Nombre',
-              summary: {
-                totalLicenses: licenseData.totalLicenses,
-                activeLicenses: licenseData.activeLicenses,
-                overallUtilization: totalUtilization,
-                activeFeatures,
-                partialFeatures,
-                inactiveFeatures,
-                totalAnnualCost,
-                wastedCost,
-                potentialSavings
-              },
-              features: featuresData,
-              snapshots: JSON.parse(localStorage.getItem('fortisase-snapshots') || '[]')
-            };
-
-            const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `fortisase-compliance-report-${clientName || 'cliente'}-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          };
-
-          // Datos para gráficos
-          const utilizationData = featuresData.map((feature, index) => ({
-            name: feature.name.split(' ').slice(0, 2).join(' '),
-            fullName: feature.name,
-            utilization: feature.utilizationRate,
-            active: feature.licensesActive,
-            required: feature.licensesRequired,
-            id: `feature-${index}`
-          }));
-
-          const statusData = [
-            { name: 'Activas', value: activeFeatures, color: '#10b981' },
-            { name: 'Parciales', value: partialFeatures, color: '#f59e0b' },
-            { name: 'Inactivas', value: inactiveFeatures, color: '#ef4444' }
+          const featuresData = [
+            { id: 'sia', name: 'Secure Internet Access (SIA)', utilizationRate: 100, status: 'active', licensesActive: 387, licensesRequired: 387, costPerLicense: 90 },
+            { id: 'spa', name: 'Secure Private Access (SPA)', utilizationRate: 78, status: 'partial', licensesActive: 156, licensesRequired: 200, costPerLicense: 117 },
+            { id: 'swg', name: 'Secure Web Gateway (SWG)', utilizationRate: 100, status: 'active', licensesActive: 387, licensesRequired: 387, costPerLicense: 90 },
+            { id: 'casb', name: 'Cloud Access Security Broker (CASB)', utilizationRate: 48, status: 'partial', licensesActive: 145, licensesRequired: 300, costPerLicense: 117 },
+            { id: 'dlp', name: 'Data Loss Prevention (DLP)', utilizationRate: 60, status: 'partial', licensesActive: 234, licensesRequired: 387, costPerLicense: 117 }
           ];
 
-          const costData = featuresData.map((feature, index) => ({
-            name: feature.name.split(' ').slice(0, 2).join(' '),
-            fullName: feature.name,
-            totalCost: feature.licensesRequired * feature.costPerLicense,
-            wastedCost: (feature.licensesRequired - feature.licensesActive) * feature.costPerLicense,
-            utilizationRate: feature.utilizationRate,
-            id: `cost-${index}`
+          const totalUtilization = Math.round(featuresData.reduce((acc, f) => acc + f.utilizationRate, 0) / featuresData.length);
+          const activeFeatures = featuresData.filter(f => f.status === 'active').length;
+          const totalLicenses = featuresData.reduce((acc, f) => acc + f.licensesRequired, 0);
+          const activeLicenses = featuresData.reduce((acc, f) => acc + f.licensesActive, 0);
+          const totalAnnualCost = featuresData.reduce((acc, f) => acc + (f.licensesRequired * f.costPerLicense), 0);
+          const wastedCost = featuresData.reduce((acc, f) => acc + ((f.licensesRequired - f.licensesActive) * f.costPerLicense), 0);
+
+          const chartData = featuresData.map(f => ({
+            name: f.name.split(' ').slice(0, 2).join(' '),
+            utilization: f.utilizationRate
           }));
 
-          const getTrendsData = () => {
-            const snapshots = JSON.parse(localStorage.getItem('fortisase-snapshots') || '[]');
-            if (snapshots.length === 0) {
-              return [
-                { month: 'Ene', utilization: 65 },
-                { month: 'Feb', utilization: 68 },
-                { month: 'Mar', utilization: 72 },
-                { month: 'Abr', utilization: 75 },
-                { month: 'May', utilization: 78 },
-                { month: 'Jun', utilization: totalUtilization }
-              ];
-            }
-            
-            return snapshots.map((snapshot, index) => ({
-              month: new Date(snapshot.date).toLocaleDateString('es-ES', { month: 'short' }),
-              utilization: snapshot.utilizationRate
-            }));
-          };
-
           const getStatusIcon = (status) => {
-            switch (status) {
-              case 'active':
-                return React.createElement(CheckCircle, { className: "h-5 w-5 text-green-500" });
-              case 'partial':
-                return React.createElement(AlertCircle, { className: "h-5 w-5 text-yellow-500" });
-              case 'inactive':
-                return React.createElement(XCircle, { className: "h-5 w-5 text-red-500" });
-              default:
-                return React.createElement(AlertCircle, { className: "h-5 w-5 text-gray-500" });
-            }
+            if (status === 'active') return React.createElement(CheckCircle, { className: "h-5 w-5 text-green-500" });
+            if (status === 'partial') return React.createElement(AlertCircle, { className: "h-5 w-5 text-yellow-500" });
+            return React.createElement(XCircle, { className: "h-5 w-5 text-red-500" });
           };
 
-          const getStatusColor = (status) => {
-            switch (status) {
-              case 'active':
-                return 'bg-green-100 text-green-800 border-green-200';
-              case 'partial':
-                return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-              case 'inactive':
-                return 'bg-red-100 text-red-800 border-red-200';
-              default:
-                return 'bg-gray-100 text-gray-800 border-gray-200';
-            }
-          };
-
-          return React.createElement(
-            'div',
-            { className: 'min-h-screen bg-gray-50 p-6' },
-            React.createElement(
-              'div',
-              { className: 'max-w-7xl mx-auto' },
-              
-              // Header
-              React.createElement(
-                'div',
-                { className: 'bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-6' },
-                React.createElement(
-                  'div',
-                  { className: 'flex flex-col lg:flex-row justify-between items-start lg:items-center' },
-                  React.createElement(
-                    'div',
-                    null,
-                    React.createElement(
-                      'h1',
-                      { className: 'text-3xl font-bold text-gray-900' },
-                      '🔍 FortiSASE Health Check',
-                      clientName && React.createElement('span', { className: 'text-red-600' }, ' - ', clientName)
-                    ),
-                    React.createElement(
-                      'p',
-                      { className: 'text-gray-600 mt-2' },
-                      'Herramienta de análisis y optimización de aprovechamiento de licencias FortiSASE'
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'flex flex-wrap items-center mt-3 text-sm text-gray-500 gap-4' },
-                      React.createElement('span', null, '📊 Dashboard Interactivo'),
-                      React.createElement('span', null, '📋 Executive Summary'),
-                      React.createElement('span', null, '💾 Gestión de Configuración'),
-                      React.createElement('span', null, '🔄 Feedback & Mejoras')
-                    )
-                  ),
-                  React.createElement(
-                    'div',
-                    { className: 'flex flex-wrap gap-3 mt-4 lg:mt-0' },
-                    React.createElement(
-                      'button',
-                      {
-                        onClick: () => setShowConfigPanel(!showConfigPanel),
-                        className: 'flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors'
-                      },
-                      React.createElement(Settings, { className: 'h-4 w-4 mr-2' }),
-                      showConfigPanel ? 'Cerrar' : 'Configurar'
-                    ),
-                    React.createElement(
-                      'button',
-                      {
-                        onClick: exportReport,
-                        className: 'flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors'
-                      },
-                      React.createElement(Download, { className: 'h-4 w-4 mr-2' }),
-                      'Exportar Datos'
-                    ),
-                    React.createElement(
-                      'button',
-                      {
-                        onClick: () => {
-                          if (window.confirm('¿Quieres dejar feedback sobre esta herramienta?')) {
-                            window.open('https://github.com/yourusername/fortisase-healthcheck/issues/new?template=feedback.md&title=Feedback%20Dashboard', '_blank');
-                          }
-                        },
-                        className: 'flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
-                      },
-                      '💬 Feedback'
-                    )
-                  )
-                ),
-                
-                // Demo Notice
-                React.createElement(
-                  'div',
-                  { className: 'mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg' },
-                  React.createElement(
-                    'div',
-                    { className: 'flex items-center' },
-                    React.createElement(
-                      'div',
-                      { className: 'flex-shrink-0' },
-                      React.createElement(CheckCircle, { className: 'h-5 w-5 text-blue-600' })
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'ml-3' },
-                      React.createElement(
-                        'h3',
-                        { className: 'text-sm font-medium text-blue-800' },
-                        '🚀 Version Beta - Buscamos tu Feedback'
-                      ),
-                      React.createElement(
-                        'div',
-                        { className: 'mt-2 text-sm text-blue-700' },
-                        React.createElement(
-                          'p',
-                          null,
-                          'Esta es una herramienta en desarrollo activo. ',
-                          React.createElement('strong', null, 'Tu feedback es crucial'),
-                          ' para mejorar la experiencia. Próximamente: APIs en tiempo real, multi-tecnología (FortiGate, FortiAnalyzer), y más funcionalidades avanzadas.'
-                        )
-                      )
-                    )
-                  )
-                )
-              ),
-
-              // Executive Summary Dashboard
-              React.createElement(
-                'div',
-                { className: 'bg-gradient-to-r from-red-600 to-red-800 rounded-xl shadow-lg mb-8 p-8 text-white' },
-                React.createElement(
-                  'div',
-                  { className: 'flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6' },
-                  React.createElement(
-                    'div',
-                    null,
-                    React.createElement('h2', { className: 'text-2xl font-bold' }, 'Resumen Ejecutivo FortiSASE'),
-                    React.createElement('p', { className: 'text-red-100 mt-1' }, 'Estado general del aprovechamiento de licencias')
-                  ),
-                  React.createElement(
-                    'div',
-                    { className: 'text-right mt-4 lg:mt-0' },
-                    React.createElement('div', { className: 'text-3xl font-bold' }, totalUtilization, '%'),
-                    React.createElement('div', { className: 'text-red-100 text-sm' }, 'Aprovechamiento Global')
-                  )
-                ),
-                
-                React.createElement(
-                  'div',
-                  { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6' },
+          return (
+            <div className="min-h-screen bg-gray-50 p-6">
+              <div className="max-w-7xl mx-auto">
+                {/* Header */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 p-6">
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center">
+                    <div>
+                      <h1 className="text-3xl font-bold text-gray-900">🔍 FortiSASE Health Check - {clientName}</h1>
+                      <p className="text-gray-600 mt-2">Herramienta de análisis y optimización de aprovechamiento de licencias FortiSASE</p>
+                    </div>
+                    <div className="flex gap-3 mt-4 lg:mt-0">
+                      <button onClick={() => setShowConfigPanel(!showConfigPanel)} className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                        {React.createElement(Settings, { className: 'h-4 w-4 mr-2' })}
+                        Configurar
+                      </button>
+                      <button onClick={() => window.open('https://github.com/itsmillanessa/fortinet-healthcheck', '_blank')} className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        💬 GitHub
+                      </button>
+                    </div>
+                  </div>
                   
-                  // Licencias Overview
-                  React.createElement(
-                    'div',
-                    { className: 'bg-white bg-opacity-15 rounded-lg p-6 backdrop-blur-sm border border-red-400 border-opacity-30' },
-                    React.createElement(
-                      'div',
-                      { className: 'flex items-center justify-between mb-4' },
-                      React.createElement(Users, { className: 'h-10 w-10 text-red-200' }),
-                      React.createElement(
-                        'div',
-                        { className: 'text-right' },
-                        React.createElement('div', { className: 'text-2xl font-bold' }, licenseData.totalLicenses),
-                        React.createElement('div', { className: 'text-red-200 text-sm' }, 'Licencias Totales')
-                      )
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'flex justify-between text-sm' },
-                      React.createElement('span', { className: 'text-red-200' }, 'Activas:'),
-                      React.createElement('span', { className: 'font-semibold' }, licenseData.activeLicenses)
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'flex justify-between text-sm mt-1' },
-                      React.createElement('span', { className: 'text-red-200' }, 'Disponibles:'),
-                      React.createElement('span', { className: 'font-semibold' }, licenseData.availableLicenses)
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'w-full bg-red-900 bg-opacity-50 rounded-full h-2 mt-3' },
-                      React.createElement('div', {
-                        className: 'bg-gray-200 h-2 rounded-full transition-all duration-500',
-                        style: { width: `${(licenseData.activeLicenses / licenseData.totalLicenses) * 100}%` }
-                      })
-                    )
-                  ),
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        {React.createElement(CheckCircle, { className: 'h-5 w-5 text-blue-600' })}
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-blue-800">🚀 Herramienta Open Source - Completamente Funcional</h3>
+                        <div className="mt-2 text-sm text-blue-700">
+                          <p>Dashboard interactivo con datos demo. Configura tus propios valores usando el panel de configuración.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                  // Funcionalidades Status
-                  React.createElement(
-                    'div',
-                    { className: 'bg-white bg-opacity-15 rounded-lg p-6 backdrop-blur-sm border border-red-400 border-opacity-30' },
-                    React.createElement(
-                      'div',
-                      { className: 'flex items-center justify-between mb-4' },
-                      React.createElement(Shield, { className: 'h-10 w-10 text-gray-200' }),
-                      React.createElement(
-                        'div',
-                        { className: 'text-right' },
-                        React.createElement('div', { className: 'text-2xl font-bold' }, `${activeFeatures}/${featuresData.length}`),
-                        React.createElement('div', { className: 'text-red-200 text-sm' }, 'Funcionalidades Activas')
-                      )
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'grid grid-cols-3 gap-2 text-center text-xs' },
-                      React.createElement(
-                        'div',
-                        null,
-                        React.createElement('div', { className: 'text-gray-200 font-bold' }, activeFeatures),
-                        React.createElement('div', { className: 'text-red-200' }, 'Activas')
-                      ),
-                      React.createElement(
-                        'div',
-                        null,
-                        React.createElement('div', { className: 'text-amber-300 font-bold' }, partialFeatures),
-                        React.createElement('div', { className: 'text-red-200' }, 'Parciales')
-                      ),
-                      React.createElement(
-                        'div',
-                        null,
-                        React.createElement('div', { className: 'text-red-300 font-bold' }, inactiveFeatures),
-                        React.createElement('div', { className: 'text-red-200' }, 'Inactivas')
-                      )
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'mt-3 text-center text-xs text-red-200' },
-                      `Total: ${featuresData.length} funcionalidades`
-                    )
-                  ),
+                {/* Executive Summary */}
+                <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl shadow-lg mb-8 p-8 text-white">
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6">
+                    <div>
+                      <h2 className="text-2xl font-bold">Resumen Ejecutivo FortiSASE</h2>
+                      <p className="text-red-100 mt-1">Estado general del aprovechamiento de licencias</p>
+                    </div>
+                    <div className="text-right mt-4 lg:mt-0">
+                      <div className="text-3xl font-bold">{totalUtilization}%</div>
+                      <div className="text-red-100 text-sm">Aprovechamiento Global</div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="bg-white bg-opacity-15 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        {React.createElement(Users, { className: 'h-10 w-10 text-red-200' })}
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">{totalLicenses}</div>
+                          <div className="text-red-200 text-sm">Licencias Totales</div>
+                        </div>
+                      </div>
+                      <div className="text-sm">Activas: {activeLicenses}</div>
+                    </div>
 
-                  // Impacto Financiero
-                  React.createElement(
-                    'div',
-                    { className: 'bg-white bg-opacity-15 rounded-lg p-6 backdrop-blur-sm border border-red-400 border-opacity-30' },
-                    React.createElement(
-                      'div',
-                      { className: 'flex items-center justify-between mb-4' },
-                      React.createElement(DollarSign, { className: 'h-10 w-10 text-amber-300' }),
-                      React.createElement(
-                        'div',
-                        { className: 'text-right' },
-                        React.createElement('div', { className: 'text-2xl font-bold' }, '$', totalAnnualCost.toLocaleString()),
-                        React.createElement('div', { className: 'text-red-200 text-sm' }, 'Inversión Anual')
-                      )
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'space-y-2 text-sm' },
-                      React.createElement(
-                        'div',
-                        { className: 'flex justify-between' },
-                        React.createElement('span', { className: 'text-red-200' }, 'Aprovechado:'),
-                        React.createElement('span', { className: 'text-gray-200 font-semibold' }, '$', (totalAnnualCost - wastedCost).toLocaleString())
-                      ),
-                      React.createElement(
-                        'div',
-                        { className: 'flex justify-between' },
-                        React.createElement('span', { className: 'text-red-200' }, 'Desperdiciado:'),
-                        React.createElement('span', { className: 'text-red-300 font-semibold' }, '$', wastedCost.toLocaleString())
-                      )
-                    )
-                  ),
+                    <div className="bg-white bg-opacity-15 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        {React.createElement(Shield, { className: 'h-10 w-10 text-gray-200' })}
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">{activeFeatures}/{featuresData.length}</div>
+                          <div className="text-red-200 text-sm">Funcionalidades Activas</div>
+                        </div>
+                      </div>
+                    </div>
 
-                  // Oportunidad de Mejora
-                  React.createElement(
-                    'div',
-                    { className: 'bg-white bg-opacity-15 rounded-lg p-6 backdrop-blur-sm border border-red-400 border-opacity-30' },
-                    React.createElement(
-                      'div',
-                      { className: 'flex items-center justify-between mb-4' },
-                      React.createElement(TrendingUp, { className: 'h-10 w-10 text-amber-300' }),
-                      React.createElement(
-                        'div',
-                        { className: 'text-right' },
-                        React.createElement('div', { className: 'text-2xl font-bold' }, '$', potentialSavings.toLocaleString()),
-                        React.createElement('div', { className: 'text-red-200 text-sm' }, 'Ahorro Potencial')
-                      )
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'text-center' },
-                      React.createElement(
-                        'div',
-                        { className: 'text-3xl font-bold text-amber-300' },
-                        totalAnnualCost > 0 ? ((potentialSavings / totalAnnualCost) * 100).toFixed(1) : 0, '%'
-                      ),
-                      React.createElement('div', { className: 'text-red-200 text-xs' }, 'de optimización posible')
-                    )
-                  )
-                )
-              ),
+                    <div className="bg-white bg-opacity-15 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        {React.createElement(DollarSign, { className: 'h-10 w-10 text-amber-300' })}
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">${totalAnnualCost.toLocaleString()}</div>
+                          <div className="text-red-200 text-sm">Inversión Anual</div>
+                        </div>
+                      </div>
+                      <div className="text-sm">Desperdiciado: ${wastedCost.toLocaleString()}</div>
+                    </div>
 
-              // Simple charts placeholder for now
-              React.createElement(
-                'div',
-                { className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6' },
-                React.createElement('h3', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Análisis de Funcionalidades'),
-                React.createElement(
-                  'div',
-                  { className: 'text-center py-8 text-gray-500' },
-                  React.createElement('p', null, '📊 Gráficos interactivos se cargarán aquí'),
-                  React.createElement('p', { className: 'text-sm' }, 'Utilización por funcionalidad, costos y tendencias')
-                )
-              ),
+                    <div className="bg-white bg-opacity-15 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        {React.createElement(TrendingUp, { className: 'h-10 w-10 text-amber-300' })}
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">{((wastedCost / totalAnnualCost) * 100).toFixed(1)}%</div>
+                          <div className="text-red-200 text-sm">Oportunidad Mejora</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-              // Features table summary
-              React.createElement(
-                'div',
-                { className: 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden' },
-                React.createElement(
-                  'div',
-                  { className: 'p-6 border-b border-gray-200' },
-                  React.createElement('h3', { className: 'text-lg font-semibold text-gray-900' }, 'Resumen de Funcionalidades')
-                ),
-                React.createElement(
-                  'div',
-                  { className: 'overflow-x-auto' },
-                  React.createElement(
-                    'div',
-                    { className: 'p-6 space-y-4' },
-                    featuresData.slice(0, 5).map((feature) =>
-                      React.createElement(
-                        'div',
-                        { key: feature.id, className: 'flex items-center justify-between p-4 bg-gray-50 rounded-lg' },
-                        React.createElement(
-                          'div',
-                          { className: 'flex items-center space-x-4' },
-                          getStatusIcon(feature.status),
-                          React.createElement(
-                            'div',
-                            null,
-                            React.createElement('h4', { className: 'font-medium text-gray-900' }, feature.name),
-                            React.createElement('p', { className: 'text-sm text-gray-600' }, feature.category)
-                          )
-                        ),
-                        React.createElement(
-                          'div',
-                          { className: 'text-right' },
-                          React.createElement('div', { className: 'text-lg font-bold text-gray-900' }, feature.utilizationRate, '%'),
-                          React.createElement('div', { className: 'text-sm text-gray-600' }, `${feature.licensesActive}/${feature.licensesRequired} licencias`)
-                        )
-                      )
-                    ),
-                    React.createElement(
-                      'div',
-                      { className: 'text-center pt-4' },
-                      React.createElement(
-                        'button',
-                        {
-                          onClick: () => setShowConfigPanel(true),
-                          className: 'text-red-600 hover:text-red-700 font-medium'
-                        },
-                        'Ver configuración completa →'
-                      )
-                    )
-                  )
-                )
-              )
-            )
+                {/* Chart */}
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Aprovechamiento por Funcionalidad</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="utilization" fill="#dc2626" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Features List */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                  <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Resumen de Funcionalidades FortiSASE</h3>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    {featuresData.map((feature) => (
+                      <div key={feature.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          {getStatusIcon(feature.status)}
+                          <div>
+                            <h4 className="font-medium text-gray-900">{feature.name}</h4>
+                            <p className="text-sm text-gray-600">{feature.licensesActive}/{feature.licensesRequired} licencias activas</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-900">{feature.utilizationRate}%</div>
+                          <div className="text-sm text-red-600">${(feature.licensesRequired * feature.costPerLicense).toLocaleString()}/año</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-8 text-center text-gray-500">
+                  <p className="mb-2">Made with ❤️ for the Cybersecurity Community</p>
+                  <p className="text-sm">
+                    <a href="https://github.com/itsmillanessa/fortinet-healthcheck" target="_blank" className="text-blue-600 hover:text-blue-700">
+                      View on GitHub
+                    </a> | Esta herramienta es independiente y no está afiliada oficialmente con Fortinet Inc.
+                  </p>
+                </div>
+              </div>
+            </div>
           );
         };
 
-        // Render the app
         ReactDOM.render(React.createElement(FortiSASEDashboard), document.getElementById('root'));
     </script>
 </body>
 </html>
+EOF
